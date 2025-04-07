@@ -1,10 +1,9 @@
 const { Client, GatewayIntentBits, Collection, SlashCommandBuilder } = require("discord.js");
-const config = require("./config.json");
-const fs = require("fs"); // READ AND WRITE OF JSON FILES
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v9');
+const config = require("./config.json");
+const fs = require("fs");
 
-// Initialize bot
 const bot = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -13,8 +12,23 @@ const bot = new Client({
     ]
 });
 
-bot.commands = new Collection(); 
+bot.commands = new Collection();
 
+fs.readdir("./commands/", (err, files) => {
+    if (err) console.log(err);
+
+    let jsfile = files.filter(f => f.split(".").pop() === "js");
+    if (jsfile.length <= 0) {
+        console.log("No commands were found?");
+        return;
+    }
+
+    jsfile.forEach((f) => {
+        let props = require(`./commands/${f}`);
+        console.log(`${f} INIT!`);
+        bot.commands.set(props.help.name, props);
+    });
+});
 
 const commands = [
     new SlashCommandBuilder().setName('ping').setDescription('Replies with Pong!'),
@@ -26,47 +40,27 @@ const rest = new REST({ version: '9' }).setToken(config.token);
 (async () => {
     try {
         console.log('Started refreshing application (/) commands.');
-
-        await rest.put(Routes.applicationCommands(config.clientId), {
-            body: commands,
-        });
-        
+        await rest.put(Routes.applicationCommands(config.clientId), { body: commands });
         console.log('Successfully reloaded application (/) commands.');
     } catch (error) {
         console.error(error);
     }
 })();
 
-fs.readdir("./commands/", (err, files) => {
-    if (err) console.log(err);
-
-    let jsfile = files.filter(f => f.split(".").pop() === "js");
-    if (jsfile.length <= 0) {
-        console.log("No commands were found?");
-        return;
-    }
-
-    jsfile.forEach((f, i) => {
-        let props = require(`./commands/${f}`);
-        console.log(`${f} INIT!`);
-        bot.commands.set(props.help.name, props);
-    });
-});
-
-bot.on("ready", async () => {
+bot.on("ready", () => {
     console.log(`${bot.user.username} active!`);
     bot.user.setActivity("Prefix is '!'", { type: "PLAYING" });
 });
 
-bot.on("interactionCreate", async interaction => {
-    if (!interaction.isCommand()) return; 
+bot.on("interactionCreate", async (interaction) => {
+    if (!interaction.isCommand()) return;
 
     const { commandName } = interaction;
 
-    const commandfile = bot.commands.get(commandName);
-    if (commandfile) {
+    const commandFile = bot.commands.get(commandName);
+    if (commandFile) {
         try {
-            await commandfile.run(bot, interaction);
+            await commandFile.run(bot, interaction); 
         } catch (error) {
             console.error(error);
             await interaction.reply('There was an error while executing this command!');
@@ -74,7 +68,8 @@ bot.on("interactionCreate", async interaction => {
     }
 });
 
-bot.on("messageCreate", async message => {
+
+bot.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (message.channel.type === "dm") return;
 
@@ -92,3 +87,4 @@ bot.on("messageCreate", async message => {
 });
 
 bot.login(config.token);
+
